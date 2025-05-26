@@ -32,11 +32,13 @@ type Ghost struct {
 	direction Direction
 	state     GhostState
 	ghostType GhostType
+	home      Position
 }
 
 // NewGhostWithType creates a ghost with specified type and position.
-func NewGhostWithType(t GhostType, pos Position) *Ghost {
+func NewGhostWithType(t GhostType, pos, home Position) *Ghost {
 	return &Ghost{
+		home:      home,
 		position:  pos,
 		direction: Left,
 		state:     Chase,
@@ -80,6 +82,11 @@ func (g *Ghost) SetState(state GhostState) {
 	g.state = state
 }
 
+// Home returns the ghost's home position.
+func (g *Ghost) Home() Position {
+	return g.home
+}
+
 // Move moves the ghost in its current direction.
 // NextPos returns the position the ghost would move to.
 func (g *Ghost) NextPos() Position {
@@ -95,6 +102,24 @@ func (g *Ghost) NextPos() Position {
 		pos.X++
 	}
 	return pos
+}
+
+// MoveGhosts moves each ghost according to its state.
+func MoveGhosts(ghosts []*Ghost, m *maze.Maze) {
+	for _, g := range ghosts {
+		switch g.State() {
+		case Frightened:
+			g.MoveRandom(m)
+		case Eaten:
+			if g.Pos() == g.Home() {
+				g.SetState(Chase)
+			} else {
+				g.MoveToHome(m)
+			}
+		default:
+			g.MoveRandom(m)
+		}
+	}
 }
 
 // Move tries to move the ghost forward if not hitting a wall.
@@ -113,6 +138,45 @@ func (g *Ghost) Move(m *maze.Maze) {
 	if err == nil && tile != maze.Wall {
 		g.position = next
 	}
+}
+
+// MoveToHome moves the ghost one step closer to its home position.
+func (g *Ghost) MoveToHome(m *maze.Maze) {
+	bestDir := g.direction
+	shortest := 1 << 30 // large number
+
+	for _, d := range []Direction{Up, Down, Left, Right} {
+		next := g.position.moveIn(d)
+
+		if m.IsTunnelRow(next.Y) {
+			if next.X < 0 {
+				next.X = m.Width() - 1
+			} else if next.X >= m.Width() {
+				next.X = 0
+			}
+		}
+
+		tile, err := m.TileAt(next.X, next.Y)
+		if err != nil || tile == maze.Wall {
+			continue
+		}
+
+		dist := abs(next.X-g.home.X) + abs(next.Y-g.home.Y)
+		if dist < shortest {
+			shortest = dist
+			bestDir = d
+		}
+	}
+
+	g.direction = bestDir
+	g.Move(m)
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
 
 // SetDirection sets the ghost's movement direction.

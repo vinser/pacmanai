@@ -32,10 +32,10 @@ func NewModel() Model {
 		maze:   m,
 		pacman: entity.NewPacman(),
 		ghosts: []*entity.Ghost{
-			entity.NewGhostWithType(entity.Blinky, entity.Position{X: 9, Y: 3}),
-			entity.NewGhostWithType(entity.Inky, entity.Position{X: 10, Y: 3}),
-			entity.NewGhostWithType(entity.Pinky, entity.Position{X: 9, Y: 5}),
-			entity.NewGhostWithType(entity.Clyde, entity.Position{X: 10, Y: 5}),
+			entity.NewGhostWithType(entity.Blinky, entity.Position{X: 9, Y: 3}, entity.Position{X: 9, Y: 3}),
+			entity.NewGhostWithType(entity.Inky, entity.Position{X: 10, Y: 3}, entity.Position{X: 10, Y: 3}),
+			entity.NewGhostWithType(entity.Pinky, entity.Position{X: 9, Y: 5}, entity.Position{X: 9, Y: 5}),
+			entity.NewGhostWithType(entity.Clyde, entity.Position{X: 10, Y: 5}, entity.Position{X: 10, Y: 5}),
 		},
 		ghostTickInterval: 500 * time.Millisecond,
 		lastGhostMove:     time.Now(),
@@ -84,13 +84,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg.(type) {
 	case tickMsg:
 		if time.Since(m.lastGhostMove) >= m.ghostTickInterval {
-			for _, g := range m.ghosts {
-				g.MoveRandom(m.maze)
-			}
+			entity.MoveGhosts(m.ghosts, m.maze)
 			m.lastGhostMove = time.Now()
 		}
 	}
-
 	if m.checkCollisions() {
 		m.gameOver = true
 		return m, tea.Quit
