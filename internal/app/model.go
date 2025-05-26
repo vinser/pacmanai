@@ -114,7 +114,17 @@ func (m *Model) checkCollisions() bool {
 	pac := m.pacman.Pos()
 	for _, g := range m.ghosts {
 		if pac == g.Pos() {
-			return true
+			switch g.State() {
+			case entity.Frightened:
+				// Ghost is eaten - change state to Eaten, move to "home"
+				g.SetState(entity.Eaten)
+				g.SetPos(entity.Position{X: 9, Y: 3}) // TODO: центр "домика"
+			case entity.Chase, entity.Scatter:
+				// Collision = Pac-Man death
+				return true
+			case entity.Eaten:
+				// already eaten — ignore
+			}
 		}
 	}
 	return false
