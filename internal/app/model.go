@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,6 +8,7 @@ import (
 	"github.com/vinser/pacmanai/internal/entity"
 	"github.com/vinser/pacmanai/internal/maze"
 	"github.com/vinser/pacmanai/internal/render"
+	"github.com/vinser/pacmanai/internal/state"
 )
 
 const frightenedPeriod = 10 * time.Second
@@ -29,9 +29,12 @@ type Model struct {
 // NewModel initializes the game model with maze, player, and ghosts.
 func NewModel() Model {
 	m := maze.LoadDefault()
+	st := state.Load()
+	s := entity.NewScore()
+	s.SetHigh(st.HighScore)
 
 	return Model{
-		score:  entity.NewScore(),
+		score:  s,
 		maze:   m,
 		pacman: entity.NewPacman(),
 		ghosts: []*entity.Ghost{
@@ -97,6 +100,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if m.checkCollisions() {
 		m.gameOver = true
+		currentScore := m.score.Get()
+		st := state.Load()
+		if currentScore > st.HighScore {
+			st.HighScore = currentScore
+			_ = state.Save(st)
+		}
 		return m, tea.Quit
 	}
 
@@ -139,12 +148,7 @@ func (m *Model) checkCollisions() bool {
 // View renders the current game state.
 func (m Model) View() string {
 	if m.gameOver {
-		return fmt.Sprintf("\nGame Over! Score: %d\n", m.score.Get())
+		return render.RenderGameOver(m.score)
 	}
-
-	return fmt.Sprintf(
-		"Score: %d\n%s\nControls: ← ↑ ↓ → — move, q — quit\n",
-		m.score.Get(),
-		render.RenderAll(m.maze, m.pacman, m.ghosts),
-	)
+	return render.RenderAll(m.maze, m.pacman, m.ghosts, m.score)
 }

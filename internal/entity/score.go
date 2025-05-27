@@ -2,6 +2,7 @@ package entity
 
 type Score struct {
 	value             int
+	high              int
 	eatenGhostsStreak int
 }
 
@@ -34,4 +35,12 @@ func (s *Score) AddGhostPoints() {
 // Reset when frightened mode ends
 func (s *Score) ResetGhostStreak() {
 	s.eatenGhostsStreak = 0
+}
+
+func (s *Score) GetHigh() int {
+	return s.high
+}
+
+func (s *Score) SetHigh(value int) {
+	s.high = value
 }

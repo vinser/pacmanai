@@ -1,6 +1,7 @@
 package render
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -11,36 +12,38 @@ import (
 var (
 	styleFrightened = lipgloss.NewStyle().Foreground(lipgloss.Color("12"))
 	styleEaten      = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	headerStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("10"))
 )
 
-// isGhostAt returns rune of ghost if present at (x, y), else 0.
 func ghostAt(x, y int, ghosts []*entity.Ghost) *entity.Ghost {
 	for _, g := range ghosts {
-		pos := g.Pos()
-		if pos.X == x && pos.Y == y {
+		if g.Pos().X == x && g.Pos().Y == y {
 			return g
 		}
 	}
 	return nil
 }
 
-// RenderAll builds a full frame from the maze and entities.
-func RenderAll(m *maze.Maze, pac *entity.Pacman, ghosts []*entity.Ghost) string {
+// RenderAll returns the complete screen output with game entities and stats.
+func RenderAll(m *maze.Maze, pac *entity.Pacman, ghosts []*entity.Ghost, score *entity.Score) string {
 	var sb strings.Builder
 
+	// Draw game header
+	header := fmt.Sprintf("Score: %d   High Score: %d\n", score.Get(), score.GetHigh())
+	sb.WriteString(headerStyle.Render(header))
+	sb.WriteRune('\n')
+
+	// Draw maze with entities
 	for y := 0; y < m.Height(); y++ {
 		for x := 0; x < m.Width(); x++ {
-			// Ghosts first
 			if ghost := ghostAt(x, y, ghosts); ghost != nil {
 				sb.WriteString(RenderGhost(ghost))
 				continue
 			}
-			// Pacman
 			if pac.Pos().X == x && pac.Pos().Y == y {
 				sb.WriteRune('C')
 				continue
 			}
-			// Maze tile
 			tile, _ := m.TileAt(x, y)
 			switch tile {
 			case maze.Wall:
@@ -55,6 +58,9 @@ func RenderAll(m *maze.Maze, pac *entity.Pacman, ghosts []*entity.Ghost) string 
 		}
 		sb.WriteRune('\n')
 	}
+
+	// Controls footer
+	sb.WriteString("\nControls: ← ↑ ↓ → — move, q — quit\n")
 	return sb.String()
 }
 
@@ -67,4 +73,16 @@ func RenderGhost(g *entity.Ghost) string {
 	default:
 		return string(g.Rune())
 	}
+}
+
+func RenderGameOver(score *entity.Score) string {
+	var msg strings.Builder
+	msg.WriteString("\nGame Over!\n")
+	if score.Get() > score.GetHigh() {
+		msg.WriteString("🎉 New High Score: ")
+	} else {
+		msg.WriteString("Your Score: ")
+	}
+	msg.WriteString(fmt.Sprintf("%d\n", score.Get()))
+	return msg.String()
 }
