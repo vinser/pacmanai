@@ -35,11 +35,11 @@ type Ghost struct {
 	home      Position
 }
 
-// NewGhostWithType creates a ghost with specified type and position.
-func NewGhostWithType(t GhostType, pos, home Position) *Ghost {
+// NewGhost creates a ghost with specified type and home position.
+func NewGhost(t GhostType, home Position) *Ghost {
 	return &Ghost{
 		home:      home,
-		position:  pos,
+		position:  home,
 		direction: Left,
 		state:     Chase,
 		ghostType: t,
