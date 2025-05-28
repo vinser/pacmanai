@@ -11,7 +11,18 @@ import (
 	"github.com/vinser/pacmanai/internal/state"
 )
 
-const frightenedPeriod = 10 * time.Second
+type GameState int
+
+const (
+	StatePlaying GameState = iota
+	StateRespawning
+	StateGameOver
+)
+
+const (
+	frightenedPeriod = 10 * time.Second
+	respawnPeriod    = 3 * time.Second
+)
 
 // Model implements the bubbletea.Model interface.
 type Model struct {
@@ -24,6 +35,8 @@ type Model struct {
 	gameOver          bool
 	powerMode         bool
 	powerModeUntil    time.Time
+	state             GameState
+	respawnUntil      time.Time
 }
 
 // NewModel initializes the game model with maze, player, and ghosts.
@@ -36,7 +49,7 @@ func NewModel() Model {
 	return Model{
 		score:  s,
 		maze:   m,
-		pacman: entity.NewPacman(),
+		pacman: entity.NewPacman(entity.Position{X: 1, Y: 1}),
 		ghosts: []*entity.Ghost{
 			entity.NewGhost(entity.Blinky, entity.Position{X: 9, Y: 3}),
 			entity.NewGhost(entity.Inky, entity.Position{X: 10, Y: 3}),
@@ -45,6 +58,7 @@ func NewModel() Model {
 		},
 		ghostTickInterval: 500 * time.Millisecond,
 		lastGhostMove:     time.Now(),
+		state:             StatePlaying,
 	}
 }
 
@@ -63,8 +77,23 @@ func (m Model) Init() tea.Cmd {
 
 // Update handles messages (e.g., key presses).
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.state == StateRespawning {
+		if time.Now().After(m.respawnUntil) {
+			m.pacman.SetPos(m.pacman.Home())
+			for _, g := range m.ghosts {
+				g.SetPos(g.Home())
+				g.SetState(entity.Chase)
+			}
+			m.state = StatePlaying
+		}
+		return m, tickGhosts()
+	}
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if m.state != StatePlaying {
+			// Ignore input when Respawning or Game Over
+			return m, nil
+		}
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
@@ -130,15 +159,20 @@ func (m *Model) checkCollisions() bool {
 		if pac == g.Pos() {
 			switch g.State() {
 			case entity.Frightened:
-				// Ghost is eaten - change state to Eaten, move to "home"
 				m.score.AddGhostPoints()
 				g.SetState(entity.Eaten)
 				g.SetPos(g.Home())
+				return false
 			case entity.Chase, entity.Scatter:
-				// Collision = Pac-Man death
-				return true
-			case entity.Eaten:
-				// already eaten — ignore
+				m.pacman.LoseLife()
+				if m.pacman.IsDead() {
+					m.state = StateGameOver
+					return true
+				}
+				// Enter respawn mode
+				m.state = StateRespawning
+				m.respawnUntil = time.Now().Add(respawnPeriod)
+				return false
 			}
 		}
 	}
@@ -147,8 +181,12 @@ func (m *Model) checkCollisions() bool {
 
 // View renders the current game state.
 func (m Model) View() string {
-	if m.gameOver {
+	switch m.state {
+	case StateGameOver:
 		return render.RenderGameOver(m.score)
+	case StateRespawning:
+		return render.RenderRespawning(m.pacman.Lives())
+	default:
+		return render.RenderAll(m.maze, m.pacman, m.ghosts, m.score)
 	}
-	return render.RenderAll(m.maze, m.pacman, m.ghosts, m.score)
 }

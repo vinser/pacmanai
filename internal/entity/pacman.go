@@ -5,6 +5,9 @@ import (
 	"github.com/vinser/pacmanai/internal/maze"
 )
 
+// Default lives count for Pacman.
+const defaultLives = 3
+
 // Direction represents movement direction.
 type Direction int
 
@@ -22,17 +25,26 @@ type Position struct {
 
 // Pacman represents the player character.
 type Pacman struct {
+	home      Position
 	position  Position
 	direction Direction
+	lives     int
 	// You can add more fields here, e.g., animation frame, lives, etc.
 }
 
 // NewPacman returns a new Pacman instance with default values.
-func NewPacman() *Pacman {
+func NewPacman(home Position) *Pacman {
 	return &Pacman{
-		position:  Position{X: 1, Y: 1}, // starting position
+		home:      home,
+		position:  home, // starting position
 		direction: Right,
+		lives:     defaultLives,
 	}
+}
+
+// Home returns Pacman's home position.
+func (p *Pacman) Home() Position {
+	return p.home
 }
 
 // Pos returns Pacman's current position.
@@ -97,4 +109,31 @@ func (p *Pacman) HandleInput(msg tea.KeyMsg) {
 	case "right", "d":
 		p.direction = Right
 	}
+}
+
+// Lives returns Pacman's remaining lives.
+func (p *Pacman) Lives() int {
+	return p.lives
+}
+
+// LoseLife reduces Pacman's lives by 1.
+func (p *Pacman) LoseLife() {
+	if p.lives > 0 {
+		p.lives--
+	}
+}
+
+// IsDead returns true if Pacman has no lives left.
+func (p *Pacman) IsDead() bool {
+	return p.lives <= 0
+}
+
+// ReseLives resets Pacman's lives to the default value.
+func (p *Pacman) ResetLives() {
+	p.lives = defaultLives
+}
+
+// AddLife adds a life to Pacman.
+func (p *Pacman) AddLife() {
+	p.lives++
 }

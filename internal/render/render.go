@@ -3,6 +3,7 @@ package render
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/vinser/pacmanai/internal/entity"
@@ -29,7 +30,7 @@ func RenderAll(m *maze.Maze, pac *entity.Pacman, ghosts []*entity.Ghost, score *
 	var sb strings.Builder
 
 	// Draw game header
-	header := fmt.Sprintf("Score: %d   High Score: %d\n", score.Get(), score.GetHigh())
+	header := fmt.Sprintf("Score: %d   High Score: %d   Lives: %d\n", score.Get(), score.GetHigh(), pac.Lives())
 	sb.WriteString(headerStyle.Render(header))
 	sb.WriteRune('\n')
 
@@ -79,10 +80,24 @@ func RenderGameOver(score *entity.Score) string {
 	var msg strings.Builder
 	msg.WriteString("\nGame Over!\n")
 	if score.Get() > score.GetHigh() {
-		msg.WriteString("🎉 New High Score: ")
+		msg.WriteString("!!! New High Score: ")
 	} else {
 		msg.WriteString("Your Score: ")
 	}
 	msg.WriteString(fmt.Sprintf("%d\n", score.Get()))
 	return msg.String()
+}
+
+func RenderRespawning(lives int) string {
+	var flash string
+	if (time.Now().UnixNano()/int64(time.Millisecond)/500)%2 == 0 {
+		flash = "Respawning..."
+	} else {
+		flash = ""
+	}
+	return fmt.Sprintf(
+		"\n%s\nLives: %d\nGet ready to continue\n",
+		flash,
+		lives,
+	)
 }
