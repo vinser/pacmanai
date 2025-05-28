@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/vinser/pacmanai/internal/entity"
+	"github.com/vinser/pacmanai/internal/level"
 	"github.com/vinser/pacmanai/internal/maze"
 	"github.com/vinser/pacmanai/internal/render"
 	"github.com/vinser/pacmanai/internal/state"
@@ -17,48 +18,49 @@ const (
 	StatePlaying GameState = iota
 	StateRespawning
 	StateGameOver
+	StateLevelIntro
 )
 
 const (
 	frightenedPeriod = 10 * time.Second
 	respawnPeriod    = 3 * time.Second
+	levelIntroPeriod = 3 * time.Second
 )
 
 // Model implements the bubbletea.Model interface.
 type Model struct {
-	score             *entity.Score
-	maze              *maze.Maze
-	pacman            *entity.Pacman
-	ghosts            []*entity.Ghost
-	ghostTickInterval time.Duration
-	lastGhostMove     time.Time
-	gameOver          bool
-	powerMode         bool
-	powerModeUntil    time.Time
-	state             GameState
-	respawnUntil      time.Time
+	level           *level.Config
+	pacman          *entity.Pacman
+	ghosts          []*entity.Ghost
+	lastGhostMove   time.Time
+	powerMode       bool
+	powerModeUntil  time.Time
+	score           *entity.Score
+	state           GameState
+	respawnUntil    time.Time
+	gameOver        bool
+	levelIntroUntil time.Time
 }
 
 // NewModel initializes the game model with maze, player, and ghosts.
 func NewModel() Model {
-	m := maze.LoadDefault()
 	st := state.Load()
 	s := entity.NewScore()
 	s.SetHigh(st.HighScore)
-
+	lvl := level.Create(1)
+	ghosts := []*entity.Ghost{
+		entity.NewGhost(entity.Blinky, entity.Position{X: 9, Y: 3}),
+		entity.NewGhost(entity.Inky, entity.Position{X: 10, Y: 3}),
+		entity.NewGhost(entity.Pinky, entity.Position{X: 9, Y: 5}),
+		entity.NewGhost(entity.Clyde, entity.Position{X: 10, Y: 5}),
+	}
 	return Model{
-		score:  s,
-		maze:   m,
-		pacman: entity.NewPacman(entity.Position{X: 1, Y: 1}),
-		ghosts: []*entity.Ghost{
-			entity.NewGhost(entity.Blinky, entity.Position{X: 9, Y: 3}),
-			entity.NewGhost(entity.Inky, entity.Position{X: 10, Y: 3}),
-			entity.NewGhost(entity.Pinky, entity.Position{X: 9, Y: 5}),
-			entity.NewGhost(entity.Clyde, entity.Position{X: 10, Y: 5}),
-		},
-		ghostTickInterval: 500 * time.Millisecond,
-		lastGhostMove:     time.Now(),
-		state:             StatePlaying,
+		level:         lvl,
+		pacman:        entity.NewPacman(entity.Position{X: 1, Y: 1}),
+		ghosts:        ghosts,
+		lastGhostMove: time.Now(),
+		score:         s,
+		state:         StatePlaying,
 	}
 }
 
@@ -77,13 +79,14 @@ func (m Model) Init() tea.Cmd {
 
 // Update handles messages (e.g., key presses).
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.state == StateLevelIntro {
+		if time.Now().After(m.levelIntroUntil) {
+			m.state = StatePlaying
+		}
+		return m, tickGhosts()
+	}
 	if m.state == StateRespawning {
 		if time.Now().After(m.respawnUntil) {
-			m.pacman.SetPos(m.pacman.Home())
-			for _, g := range m.ghosts {
-				g.SetPos(g.Home())
-				g.SetState(entity.Chase)
-			}
 			m.state = StatePlaying
 		}
 		return m, tickGhosts()
@@ -99,22 +102,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		default:
 			m.pacman.HandleInput(msg)
-			m.pacman.Move(m.maze)
+			m.pacman.Move(m.level.Maze)
 
 			pos := m.pacman.Pos()
-			tile := m.maze.EatItem(pos.X, pos.Y)
+			tile := m.level.Maze.EatItem(pos.X, pos.Y)
 
 			switch tile {
 			case maze.Dot:
 				m.score.Add(10)
+				m.level.RemainingDots--
 			case maze.PowerPellet:
 				m.score.Add(50)
+				m.level.RemainingDots--
 				m.powerMode = true
 				m.powerModeUntil = time.Now().Add(frightenedPeriod)
 				for _, g := range m.ghosts {
 					g.SetState(entity.Frightened)
 				}
 			}
+			if m.level.RemainingDots < 1 {
+				m.advanceLevel()
+			}
+
 		}
 	}
 
@@ -122,8 +131,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg.(type) {
 	case tickMsg:
-		if time.Since(m.lastGhostMove) >= m.ghostTickInterval {
-			entity.MoveGhosts(m.ghosts, m.maze)
+		if time.Since(m.lastGhostMove) >= m.level.GhostTickInterval {
+			entity.MoveGhosts(m.ghosts, m.level.Maze)
 			m.lastGhostMove = time.Now()
 		}
 	}
@@ -170,6 +179,11 @@ func (m *Model) checkCollisions() bool {
 					return true
 				}
 				// Enter respawn mode
+				m.pacman.SetPos(m.pacman.Home())
+				for _, g := range m.ghosts {
+					g.SetPos(g.Home())
+					g.SetState(entity.Chase)
+				}
 				m.state = StateRespawning
 				m.respawnUntil = time.Now().Add(respawnPeriod)
 				return false
@@ -179,14 +193,27 @@ func (m *Model) checkCollisions() bool {
 	return false
 }
 
+func (m *Model) advanceLevel() {
+	m.level = level.Create(m.level.Index + 1)
+	m.pacman.SetPos(m.pacman.Home())
+	for _, g := range m.ghosts {
+		g.SetPos(g.Home())
+		g.SetState(entity.Chase)
+	}
+	m.state = StateLevelIntro
+	m.levelIntroUntil = time.Now().Add(levelIntroPeriod)
+}
+
 // View renders the current game state.
 func (m Model) View() string {
 	switch m.state {
+	case StateLevelIntro:
+		return render.RenderLevelIntro(m.level.Index)
 	case StateGameOver:
 		return render.RenderGameOver(m.score)
 	case StateRespawning:
 		return render.RenderRespawning(m.pacman.Lives())
 	default:
-		return render.RenderAll(m.maze, m.pacman, m.ghosts, m.score)
+		return render.RenderAll(m.level.Maze, m.pacman, m.ghosts, m.score, m.level.Index)
 	}
 }

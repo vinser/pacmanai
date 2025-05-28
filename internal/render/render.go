@@ -26,11 +26,11 @@ func ghostAt(x, y int, ghosts []*entity.Ghost) *entity.Ghost {
 }
 
 // RenderAll returns the complete screen output with game entities and stats.
-func RenderAll(m *maze.Maze, pac *entity.Pacman, ghosts []*entity.Ghost, score *entity.Score) string {
+func RenderAll(m *maze.Maze, pac *entity.Pacman, ghosts []*entity.Ghost, score *entity.Score, level int) string {
 	var sb strings.Builder
 
 	// Draw game header
-	header := fmt.Sprintf("Score: %d   High Score: %d   Lives: %d\n", score.Get(), score.GetHigh(), pac.Lives())
+	header := fmt.Sprintf("Score: %d   High Score: %d   Lives: %d   Level: %d\n", score.Get(), score.GetHigh(), pac.Lives(), level)
 	sb.WriteString(headerStyle.Render(header))
 	sb.WriteRune('\n')
 
@@ -100,4 +100,12 @@ func RenderRespawning(lives int) string {
 		flash,
 		lives,
 	)
+}
+
+func RenderLevelIntro(level int) string {
+	var flash string
+	if (time.Now().UnixNano()/int64(time.Millisecond)/500)%2 == 0 {
+		flash = fmt.Sprintf("Going to Next Level %d", level)
+	}
+	return fmt.Sprintf("\n%s\nGet ready...\n", flash)
 }
