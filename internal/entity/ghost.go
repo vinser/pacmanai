@@ -105,14 +105,16 @@ func (g *Ghost) NextPos() Position {
 }
 
 // MoveGhosts moves each ghost according to its state.
-func MoveGhosts(ghosts []*Ghost, m *maze.Maze) {
+func MoveGhosts(ghosts []*Ghost, m *maze.Maze, powerMode bool) {
 	for _, g := range ghosts {
 		switch g.State() {
 		case Frightened:
 			g.MoveRandom(m)
 		case Eaten:
 			if g.Pos() == g.Home() {
-				g.SetState(Chase)
+				if !powerMode {
+					g.SetState(Chase)
+				}
 			} else {
 				g.MoveToHome(m)
 			}

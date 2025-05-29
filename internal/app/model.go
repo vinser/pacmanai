@@ -132,7 +132,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg.(type) {
 	case tickMsg:
 		if time.Since(m.lastGhostMove) >= m.level.GhostTickInterval {
-			entity.MoveGhosts(m.ghosts, m.level.Maze)
+			entity.MoveGhosts(m.ghosts, m.level.Maze, m.powerMode)
 			m.lastGhostMove = time.Now()
 		}
 	}
